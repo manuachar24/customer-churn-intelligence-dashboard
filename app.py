@@ -13,7 +13,16 @@ st.set_page_config(
 )
 
 
-model = joblib.load("best_churn_pipeline.pkl")
+@st.cache_resource
+def load_model():
+    try:
+        return joblib.load("best_churn_pipeline.pkl")
+    except Exception as e:
+        st.error(f"❌ Model failed to load: {e}")
+        st.stop()
+
+model = load_model()
+
 
 st.markdown("""
 <style>
@@ -82,11 +91,6 @@ st.markdown("""
     margin-bottom: 14px;
 }
 
-.small-text {
-    font-size: 14px;
-    color: #cbd5e1;
-}
-
 .kpi-label {
     font-size: 14px;
     color: #cbd5e1;
@@ -136,7 +140,6 @@ footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-
 st.sidebar.markdown("## 🎛 Customer Controls")
 st.sidebar.write("Adjust the customer profile and run churn prediction.")
 
@@ -163,7 +166,8 @@ payment_method = st.sidebar.selectbox(
 monthly_charges = st.sidebar.number_input("Monthly Charges", min_value=0.0, value=70.0)
 total_charges = st.sidebar.number_input("Total Charges", min_value=0.0, value=1000.0)
 
-predict_btn = st.sidebar.button("🚀 Run Prediction", use_container_width=True)
+predict_btn = st.sidebar.button("🚀 Run Prediction", width='stretch')
+
 
 input_data = pd.DataFrame([{
     'Gender': gender,
@@ -200,7 +204,6 @@ if paperless_billing == "Yes":
     risk_flags.append("Paperless billing segment")
 if payment_method == "Electronic check":
     risk_flags.append("Electronic check payment")
-
 
 st.markdown("""
 <div class="hero-card">
@@ -251,6 +254,9 @@ tab1, tab2, tab3 = st.tabs(["🏠 Overview", "🎯 Prediction", "📈 Insights"]
 
 prediction = None
 probability = None
+risk_label = None
+badge_class = None
+risk_distribution = [50, 50]
 
 if predict_btn:
     prediction = model.predict(input_data)[0]
@@ -275,7 +281,7 @@ with tab1:
     with left:
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
         st.markdown('<div class="card-title">👤 Customer Snapshot</div>', unsafe_allow_html=True)
-        st.dataframe(input_data.T, use_container_width=True)
+        st.dataframe(input_data.T.astype(str), width='stretch')
         st.markdown('</div>', unsafe_allow_html=True)
 
     with right:
@@ -291,6 +297,7 @@ with tab1:
         st.write("")
         st.caption("These are business-facing churn signals based on the customer profile.")
         st.markdown('</div>', unsafe_allow_html=True)
+
 
 with tab2:
     if predict_btn:
@@ -320,7 +327,7 @@ with tab2:
                 font={'color': "white", 'size': 18},
                 height=350
             )
-            st.plotly_chart(gauge, use_container_width=True)
+            st.plotly_chart(gauge, width='stretch')
             st.markdown('</div>', unsafe_allow_html=True)
 
         with colB:
@@ -333,7 +340,10 @@ with tab2:
                 st.success("✅ This customer is likely to stay.")
 
             st.write(f"### Churn Probability: **{probability:.2%}**")
-            st.markdown(f'<div class="{badge_class}">{"🟢" if risk_label=="Low Risk" else "🟡" if risk_label=="Medium Risk" else "🔴"} {risk_label}</div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="{badge_class}">{"🟢" if risk_label=="Low Risk" else "🟡" if risk_label=="Medium Risk" else "🔴"} {risk_label}</div>',
+                unsafe_allow_html=True
+            )
             st.write("")
             st.caption("Risk category is derived from the churn probability score.")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -361,9 +371,9 @@ with tab2:
             st.write("- Preserve engagement with personalized communication")
 
         st.markdown('</div>', unsafe_allow_html=True)
-
     else:
         st.info("Use the sidebar and click **Run Prediction** to generate the churn analysis.")
+
 
 with tab3:
     if predict_btn:
@@ -384,24 +394,25 @@ with tab3:
                 height=350,
                 showlegend=True
             )
-            st.plotly_chart(donut, use_container_width=True)
+            st.plotly_chart(donut, width='stretch')
             st.markdown('</div>', unsafe_allow_html=True)
 
         with right:
             st.markdown('<div class="section-card">', unsafe_allow_html=True)
             st.markdown('<div class="card-title">📊 Business Interpretation</div>', unsafe_allow_html=True)
 
-            insight_rows = []
-            insight_rows.append(["Contract Type", contract])
-            insight_rows.append(["Internet Service", internet_service])
-            insight_rows.append(["Tech Support", tech_support])
-            insight_rows.append(["Online Security", online_security])
-            insight_rows.append(["Payment Method", payment_method])
-            insight_rows.append(["Tenure Segment", "Low" if tenure_months < 12 else "Medium" if tenure_months < 36 else "High"])
-            insight_rows.append(["Billing Pressure", "High" if monthly_charges > 80 else "Moderate" if monthly_charges > 50 else "Low"])
+            insight_rows = [
+                ["Contract Type", contract],
+                ["Internet Service", internet_service],
+                ["Tech Support", tech_support],
+                ["Online Security", online_security],
+                ["Payment Method", payment_method],
+                ["Tenure Segment", "Low" if tenure_months < 12 else "Medium" if tenure_months < 36 else "High"],
+                ["Billing Pressure", "High" if monthly_charges > 80 else "Moderate" if monthly_charges > 50 else "Low"]
+            ]
 
             insight_df = pd.DataFrame(insight_rows, columns=["Business Factor", "Current Status"])
-            st.dataframe(insight_df, use_container_width=True)
+            st.dataframe(insight_df.astype(str), width='stretch')
             st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
@@ -434,7 +445,7 @@ with tab3:
             font=dict(color="white"),
             height=420
         )
-        st.plotly_chart(bar, use_container_width=True)
+        st.plotly_chart(bar, width='stretch')
         st.markdown('</div>', unsafe_allow_html=True)
 
     else:
